@@ -3,11 +3,386 @@
 
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
+// =========================
+// ENUMS
+// =========================
+
+enum UserRole {
+  SUPER_ADMIN
+  DOCTOR
+  SECRETARY
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AppointmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  POSTPONED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+}
+
+enum DayOfWeek {
+  SATURDAY
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+}
+
+
+// =========================
+// GENERATOR
+// =========================
+
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../generated/prisma"
 }
 
+// =========================
+// DATASOURCE
+// =========================
+
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+
+
+model Specialization {
+  id          String   @id @default(uuid())
+
+  name        String   @unique
+
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+
+  updatedAt   DateTime @updatedAt
+
+  doctors     Doctor[]
+
+  @@map("specializations")
+}
+
+model Doctor {
+  // =========================
+  // Primary Key
+  // =========================
+  id String @id @default(uuid())
+
+  // =========================
+  // Business Identifier
+  // مثال: DR000001
+  // =========================
+  code String @unique
+
+  // =========================
+  // Basic Information
+  // =========================
+  fullName String
+
+  specializationId String
+
+  phone String
+
+  email String?
+
+  // =========================
+  // Account Status
+  // =========================
+  isActive Boolean @default(true)
+
+  // =========================
+  // Audit Fields
+  // =========================
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  deletedAt DateTime?
+
+  // =========================
+  // Relations
+  // =========================
+
+  /// التخصص
+  specialization Specialization @relation(
+    fields: [specializationId],
+    references: [id]
+  )
+
+  /// حسابات الطبيب والسكرتير
+  users User[]
+
+  /// العيادة (واحدة فقط)
+  clinic Clinic?
+
+  /// الاشتراكات
+  subscriptions Subscription[]
+
+
+  /// المواعيد
+  appointments Appointment[]
+
+  /// السجلات الطبية
+  medicalRecords MedicalRecord[]
+
+  @@map("doctors")
+}
+
+
+model User {
+  // =========================
+  // Primary Key
+  // =========================
+  id String @id @default(uuid())
+
+  // =========================
+  // Doctor Relation
+  // يكون NULL فقط في حالة Super Admin
+  // =========================
+  doctorId String?
+
+  // =========================
+  // Login Credentials
+  // =========================
+  username String @unique
+
+  passwordHash String
+
+  // =========================
+  // Role
+  // =========================
+  role UserRole
+
+  // =========================
+  // Status
+  // =========================
+  isActive Boolean @default(true)
+
+  lastLoginAt DateTime?
+
+  // =========================
+  // Audit Fields
+  // =========================
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  deletedAt DateTime?
+
+  // =========================
+  // Relations
+  // =========================
+  doctor Doctor? @relation(fields: [doctorId], references: [id])
+
+  @@map("users")
+}
+
+
+
+model Clinic {
+  // =========================
+  // Primary Key
+  // =========================
+  id String @id @default(uuid())
+
+  // =========================
+  // Doctor Relation (One To One)
+  // =========================
+  doctorId String @unique
+
+  // =========================
+  // Clinic Information
+  // =========================
+  clinicName String
+
+  address String?
+
+  phone String?
+
+  consultationFee Decimal @db.Decimal(10, 2)
+
+  dailyCapacity Int
+
+  bookingEnabled Boolean @default(true)
+
+  // =========================
+  // Audit Fields
+  // =========================
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  deletedAt DateTime?
+
+  // =========================
+  // Relations
+  // =========================
+  doctor Doctor @relation(
+    fields: [doctorId],
+    references: [id]
+  )
+
+  workingHours WorkingHour[]
+
+  @@map("clinics")
+}
+
+
+model WorkingHour {
+  // =========================
+  // Primary Key
+  // =========================
+  id String @id @default(uuid())
+
+  // =========================
+  // Clinic Relation
+  // =========================
+  clinicId String
+
+  // =========================
+  // Working Day
+  // =========================
+  day DayOfWeek
+
+  // =========================
+  // Working Time
+  // =========================
+  startTime String
+
+  endTime String
+
+  // =========================
+  // Status
+  // =========================
+  isActive Boolean @default(true)
+
+  // =========================
+  // Audit Fields
+  // =========================
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  // =========================
+  // Relations
+  // =========================
+  clinic Clinic @relation(
+    fields: [clinicId],
+    references: [id]
+  )
+
+  @@unique([clinicId, day])
+
+  @@map("working_hours")
+}
+
+model Subscription {
+  // =========================
+  // Primary Key
+  // =========================
+  id String @id @default(uuid())
+
+  // =========================
+  // Doctor Relation
+  // =========================
+  doctorId String
+
+  // =========================
+  // Subscription Information
+  // =========================
+  startDate DateTime
+
+  endDate DateTime
+
+  amount Decimal @db.Decimal(10, 2)
+
+  status SubscriptionStatus
+
+  notes String?
+
+  // =========================
+  // Audit Fields
+  // =========================
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  // =========================
+  // Relations
+  // =========================
+  doctor Doctor @relation(
+    fields: [doctorId],
+    references: [id]
+  )
+
+  @@map("subscriptions")
+}
+
+
+
+model Patient {
+  // =========================
+  // Primary Key
+  // =========================
+  id String @id @default(uuid())
+
+  // =========================
+  // Basic Information
+  // =========================
+  fullName String
+
+  phone String
+
+  age Int
+
+  gender Gender
+
+  address String?
+
+  notes String?
+
+  // =========================
+  // Status
+  // =========================
+  isActive Boolean @default(true)
+
+  // =========================
+  // Audit Fields
+  // =========================
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  deletedAt DateTime?
+
+  // =========================
+  // Relations
+  // =========================
+  appointments Appointment[]
+
+  medicalRecords MedicalRecord[]
+
+  @@map("patients")
 }
